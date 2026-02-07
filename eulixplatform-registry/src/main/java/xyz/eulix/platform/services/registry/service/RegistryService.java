@@ -159,12 +159,16 @@ public class RegistryService {
 
         // Step 1: Register or get existing box
         RegistryBoxEntity boxEntity;
+        String networkSecretKeyPlaintext = null;  // Keep plaintext for response
         var existingBox = boxEntityRepository.findByBoxUUID(boxUUID);
         if (existingBox.isPresent()) {
             boxEntity = existingBox.get();
             LOG.infov("Box already registered, reusing: boxUUID={0}", boxUUID);
+            // Note: For existing boxes, we cannot retrieve the plaintext secret
+            // The client should have saved it from initial registration
         } else {
-            boxEntity = registryBox(boxUUID, "space_reg_" + CommonUtils.createUnifiedRandomCharacters(6), CommonUtils.getUUID());
+            networkSecretKeyPlaintext = CommonUtils.getUUID();
+            boxEntity = registryBox(boxUUID, "space_reg_" + CommonUtils.createUnifiedRandomCharacters(6), CommonUtils.getUUID(), networkSecretKeyPlaintext);
             networkService.calculateNetworkRoute(boxEntity.getNetworkClientId());
             LOG.infov("New box registered: boxUUID={0}, networkClientId={1}", boxUUID, boxEntity.getNetworkClientId());
         }
@@ -218,7 +222,7 @@ public class RegistryService {
                 subdomainEntity.getSubdomain(),
                 subdomainEntity.getUserDomain(),
                 userEntity.getRegistryType(),
-                NetworkClient.of(boxEntity.getNetworkClientId(), boxEntity.getNetworkSecretKey())
+                NetworkClient.of(boxEntity.getNetworkClientId(), networkSecretKeyPlaintext)
         );
     }
 

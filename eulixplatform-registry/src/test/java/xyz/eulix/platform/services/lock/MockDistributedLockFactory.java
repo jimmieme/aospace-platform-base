@@ -18,14 +18,18 @@ package xyz.eulix.platform.services.lock;
 
 import io.quarkus.test.Mock;
 import org.jboss.logging.Logger;
+import xyz.eulix.platform.services.config.ApplicationProperties;
+import xyz.eulix.platform.services.lock.service.ReentrantLockService;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Mock DistributedLockFactory for tests - uses in-memory locks instead of Redis.
+ * Mock DistributedLockFactory for tests - uses in-memory locks for Redis, real MySQL locks.
  */
 @Mock
 @ApplicationScoped
@@ -34,8 +38,24 @@ public class MockDistributedLockFactory extends DistributedLockFactory {
 
     private static final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
+    @Inject
+    ReentrantLockService mysqlLockService;
+
+    @Inject
+    ApplicationProperties applicationProperties;
+
     @Override
-    public DistributedLock newLock(String keyName) {
+    public DistributedLock newLock(String keyName, LockType lockType) {
+        LOG.debugv("[Mock] Creating lock, key:{0}, type:{1}", keyName, lockType);
+
+        // Use real MySQL implementation for MySQL locks
+        if (lockType.equals(LockType.MySQLReentrantLock)) {
+            String lockValue = UUID.randomUUID().toString();
+            Integer timeout = applicationProperties.getLockExpireTime();
+            return new MySQLReentrantLock(mysqlLockService, keyName, lockValue, timeout);
+        }
+
+        // Use in-memory mock for Redis locks
         return new MockDistributedLock(keyName);
     }
 
